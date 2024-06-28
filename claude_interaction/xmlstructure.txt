@@ -1,0 +1,24 @@
+I wish to read from an XML text file that contains historical prices for a number of securities.
+The file has an XML structure and the following tags are of interest to me:
+
+<client>
+    <securities>
+        <security>
+            <name>Security Name</name>
+            <currencyCode>Currency Code</currencyCode>
+            <isin>ISIN Code</isin>
+            <tickerSymbol>Ticker Symbol</tickerSymbol>
+            <prices>
+                <price t="YYYY-MM-DD" v="ddddddddddd"/>
+            </prices>
+            <updatedAt>YYYY-MM-DDThh:mm:ss.uuuuuuZ</updatedAt>
+        </security>
+    </securities>
+</client>
+
+The file is named "portfolio.xml" and within the <securities></securities> tag there will be one or more 
+<security></security> tags each containing information about a given security.
+
+Please generate a Go program that will read the contents of this file that are of interest to me
+into a suitable Go structure.
+
