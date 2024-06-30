@@ -77,6 +77,7 @@ func duplicateChan(cin <-chan *asset.Snapshot) (<-chan *asset.Snapshot, <-chan *
 	return cout0, cout1, len(slice)
 }
 
+// runReport invokes the strategy's Report and writes it to a file in the reportdir.
 func runReport(st strategy.Strategy, assetName string, data <-chan *asset.Snapshot) {
 	data, _, datalen := duplicateChan(data)
 	// Detect certain strategies that require a minimum amount of data.
@@ -92,6 +93,8 @@ func runReport(st strategy.Strategy, assetName string, data <-chan *asset.Snapsh
 	}
 }
 
+// runAction computes the strategy's action for each date in the snapshot
+// and writes it to a file in the datadir.
 func runAction(st strategy.Strategy, assetName string, data <-chan *asset.Snapshot) {
 	data, _, datalen := duplicateChan(data)
 	// Detect certain strategies that require a minimum amount of data.
@@ -105,6 +108,8 @@ func runAction(st strategy.Strategy, assetName string, data <-chan *asset.Snapsh
 	setActionFile(actionString, cleanFilename(assetName), cleanFilename(st.Name()))
 }
 
+// Some strategies appear to be sensitive to insufficient data.
+// notEnoughData applies some checks and returns true for situations it determines will be problematic.
 func notEnoughData(st strategy.Strategy, assetName string, datalen int) bool {
 	msg := fmt.Sprintf("Ignoring strategy %s for %s due to insufficient data: %s", st.Name(), assetName, st.Name())
 	if st.Name()[0:4] == "MACD" {
@@ -152,34 +157,10 @@ func setActionFile(actionString string, assetName string, strategyName string) {
 	defer fd.Close()
 }
 
+// cleanFilename removes troublesome characters from a potential filename.
 func cleanFilename(filename string) string {
 	filename = strings.ReplaceAll(filename, " ", "_")
 	filename = strings.ReplaceAll(filename, "&", "And")
 	filename = strings.ReplaceAll(filename, "/", "-")
 	return filepath.Clean(filename)
-}
-
-func myDuplicate[T any](input <-chan T, count int) []<-chan T {
-	outputs := make([]chan T, count)
-	result := make([]<-chan T, count)
-
-	inputSlice := helper.ChanToSlice[T](input)
-
-	for i := range outputs {
-		outputs[i] = make(chan T, cap(input))
-		result[i] = outputs[i]
-	}
-
-	for _, output := range outputs {
-		o := output
-		go func() {
-			defer close(o)
-
-			for _, n := range inputSlice {
-				o <- n
-			}
-		}()
-	}
-
-	return result
 }

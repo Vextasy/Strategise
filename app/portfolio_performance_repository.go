@@ -78,7 +78,7 @@ func NewPortfolioPerformanceRepository(path string) (asset.Repository, error) {
 	return r, nil
 }
 
-// Assets returns the names of all assets in the repository.
+// Assets returns the names of all non-retired assets in the repository.
 func (r *portfolioPerformanceRepository) Assets() ([]string, error) {
 	assets := make([]string, 0, len(r.Securities))
 	for _, security := range r.Securities {
@@ -93,7 +93,10 @@ func (r *portfolioPerformanceRepository) Assets() ([]string, error) {
 	return assets, nil
 }
 
-// Get
+// Get returns the snapshots for the asset with the given name.
+// Our data source only contains daily closing prices
+// so we manufacture the opening price as the previous close
+// and the high and low prices from the opening and closing prices.
 func (r *portfolioPerformanceRepository) Get(name string) (<-chan *asset.Snapshot, error) {
 	security, ok := r.Securities[name]
 	if !ok {
