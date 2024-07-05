@@ -21,3 +21,4 @@ go.work.sum
 
 data/portfolio.xml
 external
+.vscode/launch.json

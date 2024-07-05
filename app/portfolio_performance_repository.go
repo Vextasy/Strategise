@@ -1,4 +1,4 @@
-package portfolio_performance
+package app
 
 import (
 	"encoding/xml"
@@ -43,6 +43,11 @@ func NewPortfolioPerformanceRepository(path string) (asset.Repository, error) {
 
 	r := &portfolioPerformanceRepository{
 		Securities: make(map[string]domain.Security),
+	}
+
+	// Ensure that all security names are suitable for writing as a filename.
+	for i := range client.Securities {
+		client.Securities[i].Name = internal.CleanFilename(client.Securities[i].Name)
 	}
 
 	// r.dateFormat is the date format expected by the indicator library.

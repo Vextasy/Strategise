@@ -3,25 +3,26 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/cinar/indicator/v2/asset"
 	"github.com/cinar/indicator/v2/helper"
 	"github.com/cinar/indicator/v2/strategy"
+	"github.com/cinar/indicator/v2/strategy/compound"
 	"github.com/cinar/indicator/v2/strategy/momentum"
 	"github.com/cinar/indicator/v2/strategy/trend"
 	"github.com/cinar/indicator/v2/strategy/volatility"
 
-	portfolio_performance "github.com/vextasy/strategise/app"
+	"github.com/vextasy/strategise/app"
+	"github.com/vextasy/strategise/internal"
 )
 
 const datadir = "/Users/john/Downloads/PPData"
 const reportdir = "/Users/john/Downloads/PPReport"
 
 func main() {
+
 	// Read the Portfolio Performance XML file
-	r, err := portfolio_performance.NewPortfolioPerformanceRepository(datadir + "/portfolio.xml")
+	r, err := app.NewPortfolioPerformanceRepository(datadir + "/portfolio.xml")
 	if err != nil {
 		fmt.Println("Error reading XML file:", err)
 		return
@@ -49,11 +50,12 @@ func main() {
 			////trend.NewTrixStrategy(),
 			////trend.NewTsiStrategy(),
 			////trend.NewVwmaStrategy(),
-			//momentum.NewRsiStrategy(),
-			////momentum.NewAwesomeOscillatorStrategy(),
+			momentum.NewRsiStrategy(),
+			momentum.NewRsiStrategyWith(40, 60),
+			//momentum.NewAwesomeOscillatorStrategy(),
 			////momentum.NewStochasticRsiStrategy(),
 			////momentum.NewTripleRsiStrategy(),
-			//compound.NewMacdRsiStrategy(),
+			compound.NewMacdRsiStrategy(),
 		}
 		for si := range strategies {
 			snapshots, err := r.Get(assets[ai])
@@ -61,9 +63,7 @@ func main() {
 				fmt.Println("Error reading asset snapshots:", err)
 				return
 			}
-			data0, data1, _ := duplicateChan(snapshots)
-			runAction(strategies[si], assets[ai], data0)
-			runReport(strategies[si], assets[ai], data1)
+			runReport(strategies[si], assets[ai], snapshots)
 		}
 	}
 }
@@ -79,13 +79,15 @@ func duplicateChan(cin <-chan *asset.Snapshot) (<-chan *asset.Snapshot, <-chan *
 
 // runReport invokes the strategy's Report and writes it to a file in the reportdir.
 func runReport(st strategy.Strategy, assetName string, data <-chan *asset.Snapshot) {
-	data, _, datalen := duplicateChan(data)
+	fmt.Println("R assetName:", assetName, "strategy:", st.Name())
 	// Detect certain strategies that require a minimum amount of data.
+	data, _, datalen := duplicateChan(data)
 	if notEnoughData(st, assetName, datalen) {
 		return
 	}
 	rep := st.Report(data)
-	filepath := fmt.Sprintf("%s/%s--%s.html", reportdir, cleanFilename(assetName), cleanFilename(st.Name()))
+	cfn := internal.CleanFilename
+	filepath := fmt.Sprintf("%s/%s--%s.html", reportdir, cfn(assetName), cfn(st.Name()))
 	err := rep.WriteToFile(filepath)
 	if err != nil {
 		fmt.Println("Error writing report:", err)
@@ -96,6 +98,7 @@ func runReport(st strategy.Strategy, assetName string, data <-chan *asset.Snapsh
 // runAction computes the strategy's action for each date in the snapshot
 // and writes it to a file in the datadir.
 func runAction(st strategy.Strategy, assetName string, data <-chan *asset.Snapshot) {
+	fmt.Println("A assetName:", assetName, "strategy:", st.Name())
 	data, _, datalen := duplicateChan(data)
 	// Detect certain strategies that require a minimum amount of data.
 	if notEnoughData(st, assetName, datalen) {
@@ -105,7 +108,8 @@ func runAction(st strategy.Strategy, assetName string, data <-chan *asset.Snapsh
 	actionSlice := helper.ChanToSlice(actions)
 	action := actionSlice[len(actionSlice)-1]
 	actionString := mkActionString(action)
-	setActionFile(actionString, cleanFilename(assetName), cleanFilename(st.Name()))
+	cfn := internal.CleanFilename
+	setActionFile(actionString, cfn(assetName), cfn(st.Name()))
 }
 
 // Some strategies appear to be sensitive to insufficient data.
@@ -120,6 +124,12 @@ func notEnoughData(st strategy.Strategy, assetName string, datalen int) bool {
 	}
 	if st.Name() == "Awesome Oscillator Strategy" {
 		if datalen < momentum.NewAwesomeOscillatorStrategy().AwesomeOscillator.LongSma.Period {
+			fmt.Println(msg)
+			return true
+		}
+	}
+	if st.Name() == "Bollinger Bands Strategy" {
+		if datalen < volatility.NewBollingerBandsStrategy().BollingerBands.IdlePeriod() {
 			fmt.Println(msg)
 			return true
 		}
@@ -155,12 +165,4 @@ func setActionFile(actionString string, assetName string, strategyName string) {
 	newfile := filePath(actionString)
 	fd, _ := os.Create(newfile)
 	defer fd.Close()
-}
-
-// cleanFilename removes troublesome characters from a potential filename.
-func cleanFilename(filename string) string {
-	filename = strings.ReplaceAll(filename, " ", "_")
-	filename = strings.ReplaceAll(filename, "&", "And")
-	filename = strings.ReplaceAll(filename, "/", "-")
-	return filepath.Clean(filename)
 }
